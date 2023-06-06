@@ -13,7 +13,7 @@ public class Cleaning
     {
         Cleaned = new HashSet<Position>(),
         Visited = new HashSet<Position>(),
-        Final = new PositionFacing(0,0),
+        Final = new PositionFacing(0, 0),
         Battery = 0
     };
 
@@ -32,7 +32,7 @@ public class Cleaning
         _cleaningResult.Final.X = _botInput.Start.X;
         _cleaningResult.Final.Y = _botInput.Start.Y;
         _cleaningResult.Final.Facing = _botInput.Start.Facing;
-        
+
         _cleaningResult.Visited.Add(new Position(_botInput.Start.X, _botInput.Start.Y));
     }
 
@@ -66,37 +66,21 @@ public class Cleaning
                     throw new ArgumentOutOfRangeException();
             }
 
-            if (IsOutsideLeft)
-            {
-                _mode = Mode.Back;
-                _cleaningResult.Final.X = 0;
-                BackStrategy();
-            }
 
-            if (IsOutsideTop)
+            if (IsObstacle)
             {
                 _mode = Mode.Back;
-                _cleaningResult.Final.Y = 0;
-                BackStrategy();
-            }
+                // revert move commands
+                switch (command)
+                {
+                    case Command.A:
+                        InternalBack();
+                        break;
+                    case Command.B:
+                        InternalAdvance();
+                        break;
+                }
 
-            if (IsOutsideRight)
-            {
-                _mode = Mode.Back;
-                _cleaningResult.Final.X = _width - 1;
-                BackStrategy();
-            }
-
-            if (IsOutsideBottom)
-            {
-                _mode = Mode.Back;
-                _cleaningResult.Final.Y = _height - 1;
-                BackStrategy();
-            }
-
-            if (IsEmpty || IsCleaned)
-            {
-                _mode = Mode.Back;
                 BackStrategy();
             }
         }
@@ -136,7 +120,7 @@ public class Cleaning
         }
 
         _cleaningResult.Battery -= 1;
-        
+
         _cleaningResult.Final.Facing = _cleaningResult.Final.Facing switch
         {
             Direction.N => Direction.E,
@@ -156,7 +140,7 @@ public class Cleaning
         }
 
         _cleaningResult.Battery -= 1;
-        
+
         _cleaningResult.Final.Facing = _cleaningResult.Final.Facing switch
         {
             Direction.N => Direction.W,
@@ -176,7 +160,17 @@ public class Cleaning
         }
 
         _cleaningResult.Battery -= 3;
-        
+
+        InternalBack();
+
+        if (!IsObstacle)
+        {
+            _cleaningResult.Visited.Add(new Position(_cleaningResult.Final.X, _cleaningResult.Final.Y));
+        }
+    }
+
+    private void InternalBack()
+    {
         switch (_cleaningResult.Final.Facing = _cleaningResult.Final.Facing)
         {
             case Direction.N:
@@ -193,11 +187,6 @@ public class Cleaning
                 break;
             default:
                 throw new ArgumentOutOfRangeException();
-        }
-
-        if (!IsObstacle)
-        {
-            _cleaningResult.Visited.Add(new Position(_cleaningResult.Final.X, _cleaningResult.Final.Y));
         }
     }
 
@@ -210,7 +199,17 @@ public class Cleaning
         }
 
         _cleaningResult.Battery -= 2;
-        
+
+        InternalAdvance();
+
+        if (!IsObstacle)
+        {
+            _cleaningResult.Visited.Add(new Position(_cleaningResult.Final.X, _cleaningResult.Final.Y));
+        }
+    }
+
+    private void InternalAdvance()
+    {
         switch (_cleaningResult.Final.Facing = _cleaningResult.Final.Facing)
         {
             case Direction.N:
@@ -228,18 +227,18 @@ public class Cleaning
             default:
                 throw new ArgumentOutOfRangeException();
         }
-        
-        if (!IsObstacle)
-        {
-            _cleaningResult.Visited.Add(new Position(_cleaningResult.Final.X, _cleaningResult.Final.Y));
-        }
     }
 
     private bool BackStrategyA()
     {
         TurnRight();
         Advance();
-        if (IsObstacle) return false;
+        if (IsObstacle)
+        {
+            InternalBack();
+            return false;
+        }
+
         TurnLeft();
         return true;
     }
@@ -248,7 +247,12 @@ public class Cleaning
     {
         TurnRight();
         Advance();
-        if (IsObstacle) return false;
+        if (IsObstacle)
+        {
+            InternalBack();
+            return false;
+        }
+
         TurnRight();
         return true;
     }
@@ -257,10 +261,20 @@ public class Cleaning
     {
         TurnRight();
         Back();
-        if (IsObstacle) return false;
+        if (IsObstacle)
+        {
+            InternalAdvance();
+            return false;
+        }
+
         TurnRight();
         Advance();
-        if (IsObstacle) return false;
+        if (IsObstacle)
+        {
+            InternalBack();
+            return false;
+        }
+
         return true;
     }
 
@@ -269,7 +283,12 @@ public class Cleaning
         TurnLeft();
         TurnLeft();
         Advance();
-        if (IsObstacle) return false;
+        if (IsObstacle)
+        {
+            InternalBack();
+            return false;
+        }
+
         return true;
     }
 
@@ -374,28 +393,11 @@ internal class Program
         }
 
         var json = File.ReadAllText(args[0]);
-        /*
-        var json = """
-{
-    "map": [
-        ["S", "S", "S", "S"],
-        ["S", "S", "C", "S"],
-        ["S", "S", "S", "S"],
-        ["S", "null", "S", "S"]
-        ],
-    "start": {"X": 3, "Y": 0, "facing": "N"},
-    "commands": [ "TL","A","C","A","C","TR","A","C"],
-    "battery": 80
-}
-""";*/
-
 
         var botInput = JsonConvert.DeserializeObject<BotInput>(json);
         var cleaning = new Cleaning(botInput);
         var output = cleaning.Perform();
-        
-        //Console.WriteLine(JsonConvert.SerializeObject(output));
-        
+
         File.WriteAllText(args[1], JsonConvert.SerializeObject(output));
     }
 }
